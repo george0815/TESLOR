@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Title="Simple Load Order Organizer" Height="648" Width="785" Closing="Window_Closing" Loaded="Window_Loaded">
     <Grid>
-        <ListView x:Name="pluginsBox" ItemsSource="{Binding loadOrder, Mode=TwoWay}" dd:DragDrop.IsDragSource="True" dd:DragDrop.IsDropTarget="True" Margin="10,121,10,46">
+        <ListView x:Name="pluginsBox" ItemsSource="{Binding loadOrder, Mode=TwoWay}" dd:DragDrop.IsDragSource="True" dd:DragDrop.IsDropTarget="True" Margin="10,121,10,46" Drop="pluginsBox_Drop">
 
             <ListView.View>
                 <GridView>
@@ -16,7 +16,7 @@
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel>
-                                    <CheckBox  Content="{Binding pluginFilename}" IsChecked="{Binding isActive}">
+                                    <CheckBox  Content="{Binding pluginFilename}" IsChecked="{Binding isActive}" Checked="CheckBox_Checked" Unchecked="CheckBox_Unchecked">
                                         <CheckBox.Style>
                                             <Style TargetType="CheckBox">
                                                 <Style.Triggers>
@@ -63,8 +63,8 @@
         </ListView>
         <Label x:Name="gameFolderLabel" Content="Folder" HorizontalAlignment="Left" Margin="7,39,0,0" VerticalAlignment="Top"/>
         <Label x:Name="pluginLabel" Content="&#xD;&#xA;Config File" HorizontalAlignment="Left" Margin="7,53,0,0" VerticalAlignment="Top"/>
-        <TextBox x:Name="gameFolderBox" IsReadOnly="True" Text="{Binding gameFolder, Mode=TwoWay}" Margin="99,44,38,0"  TextWrapping="Wrap" VerticalAlignment="Top" Height="18"/>
-        <TextBox x:Name="pluginsTextBox" IsReadOnly="True" Text="{Binding configFolder, Mode=TwoWay}" Margin="99,74,38,0" TextWrapping="Wrap" VerticalAlignment="Top" Height="18"/>
+        <TextBox x:Name="gameFolderBox" IsReadOnly="True" Text="{Binding gameFolder, Mode=TwoWay}" Margin="99,44,38,0"  TextWrapping="Wrap" VerticalAlignment="Top" Height="18" ToolTip="Displays game directory"/>
+        <TextBox x:Name="pluginsTextBox" IsReadOnly="True" Text="{Binding configFolder, Mode=TwoWay}" Margin="99,74,38,0" TextWrapping="Wrap" VerticalAlignment="Top" Height="18" ToolTip="Displays the directory for plugins.txt (or Morrowind.ini)"/>
         <ComboBox x:Name="game" Margin="10,10,10,0" VerticalAlignment="Top" SelectedIndex="3" >
             <ComboBoxItem Content="The Elder Scrolls III: Morrowind"/>
             <ComboBoxItem Content="The Elder Scrolls IV: Oblivion"/>
@@ -74,12 +74,22 @@
             <ComboBoxItem Content="Fallout: New Vegas"/>
             <ComboBoxItem Content="Fallout 4"/>
         </ComboBox>
-        <Button x:Name="gameFolderButton" Content=". . ." Margin="0,44,10,0" VerticalAlignment="Top" Height="18" HorizontalAlignment="Right" Width="23" Click="gameFolderButton_Click"/>
-        <Button x:Name="pluginFolderButton" Content=". . ." Margin="0,74,10,0" VerticalAlignment="Top" Height="18" HorizontalAlignment="Right" Width="23" Click="pluginFolderButton_Click"/>
-        <CheckBox x:Name="editMasters" IsChecked="{Binding editMaster, Mode=TwoWay}" Content="Edit masters" HorizontalAlignment="Left" Margin="12,101,0,0" VerticalAlignment="Top" Checked="editMasters_Checked" Unchecked="editMasters_Unchecked"/>
-        <CheckBox x:Name="conflictCheckBox" IsChecked="{Binding conflictCheck, Mode=TwoWay}" Content="Check for conflicts" HorizontalAlignment="Left" Margin="110,101,0,0" VerticalAlignment="Top"/>
-        <Label x:Name="progressLabel" Content="" HorizontalAlignment="Left" Margin="10,0,0,8" Width="343"  VerticalAlignment="Bottom"/>
-        <ProgressBar Minimum="0" Maximum="100" x:Name="loadingBar" Margin="358,0,10,8"  VerticalAlignment="Bottom" Height="30" RenderTransformOrigin="0.5,0.5" >
+        <Button x:Name="gameFolderButton" Content=". . ." Margin="0,44,10,0" VerticalAlignment="Top" Height="18" HorizontalAlignment="Right" Width="23" Click="gameFolderButton_Click" ToolTip="Changes game directory"/>
+        <Button x:Name="pluginFolderButton" Content=". . ." Margin="0,74,10,0" VerticalAlignment="Top" Height="18" HorizontalAlignment="Right" Width="23" Click="pluginFolderButton_Click" ToolTip="Changes plugin config file directory (file is named Morrowind.ini for Morrowind, plugins.txt for all other modern Elder Scrolls and Fallout games)"/>
+        <CheckBox x:Name="editMasters" IsChecked="{Binding editMaster, Mode=TwoWay}" Content="Edit masters" HorizontalAlignment="Left" Margin="12,101,0,0" VerticalAlignment="Top" Checked="editMasters_Checked" Unchecked="editMasters_Unchecked">
+            <CheckBox.ToolTip>
+                <TextBlock>
+                    If checked, allows master plugins to be enabled/disabled
+                 <LineBreak/> 
+                    NOTE: SOME FILES WILL ALWAYS BE LOADED IN A SPECIFIC ORDER IF PRESENT, IF THESE FILES ARE 
+                 <LineBreak/>
+                    DISABLED THEY WILL AUTOMATICALLY BE ENABLED AND REORDERED THE NEXT TIME PLUGINS ARE LOADED
+                </TextBlock>
+            </CheckBox.ToolTip>
+        </CheckBox>
+        <CheckBox x:Name="conflictCheckBox"  IsChecked="{Binding conflictCheck, Mode=TwoWay}" Content="Check for conflicts" HorizontalAlignment="Left" Margin="110,101,0,0" VerticalAlignment="Top" ToolTip="After initially loading plugins, program will check each plugin and display what other plugins overlap with it"/>
+        <Label x:Name="progressLabel" Content="Created by George S." HorizontalAlignment="Left" Margin="10,0,0,8" Width="343"  VerticalAlignment="Bottom"/>
+        <ProgressBar Minimum="0" Maximum="100" x:Name="loadingBar" Margin="358,0,10,8"  VerticalAlignment="Bottom" Height="30" RenderTransformOrigin="0.5,0.5" Visibility="Hidden" >
             <ProgressBar.RenderTransform>
                 <TransformGroup>
                     <ScaleTransform ScaleY="-1"/>
@@ -89,6 +99,7 @@
                 </TransformGroup>
             </ProgressBar.RenderTransform>
         </ProgressBar>
+        <Label x:Name="warningLabel" Content="Please enter valid paths for the game folder and the plugin&#xD;&#xA;config file. The plugin config file is usually called &quot;plugins.txt&quot; &#xD;&#xA;and is located in the local folder in the AppData directory. &#xD;&#xA;(In Morrowind's case, active plugins are recorded in &#xD;&#xA;Morrowind.ini in the game directory)" HorizontalAlignment="Center" VerticalAlignment="Top" Height="104" Width="334" Margin="0,272,0,0"/>
 
 
 
