@@ -1,18 +1,18 @@
 ﻿SimpleLoadOrderOrganizer
-1.0.0.0
+
 
 winexe
 C#
 .cs
-C:\Users\shipm\source\repos\SimpleLoadOrderOrganizer\obj\Debug\net6.0-windows\
+C:\Users\shipm\source\repos\SimpleLoadOrderOrganizer\obj\Release\net6.0-windows\
 SimpleLoadOrderOrganizer
 none
 false
-TRACE;DEBUG;NET;NET6_0;NETCOREAPP
+TRACE;RELEASE;NET;NET6_0;NETCOREAPP
 C:\Users\shipm\source\repos\SimpleLoadOrderOrganizer\App.xaml
 11407045341
 
-7-338203343
+52013955494
 2041224072466
 MainWindow.xaml;
 
