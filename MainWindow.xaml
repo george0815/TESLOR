@@ -6,7 +6,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SimpleLoadOrderOrganizer"
         mc:Ignorable="d"
-        Title="Simple Load Order Organizer" Height="648" Width="785" Closing="Window_Closing" Loaded="Window_Loaded">
+        Title="TESLOR" Height="648" Width="785" Closing="Window_Closing" Loaded="Window_Loaded">
     <Grid>
         <ListView x:Name="pluginsBox" ItemsSource="{Binding loadOrder, Mode=TwoWay}" dd:DragDrop.IsDragSource="True" dd:DragDrop.IsDropTarget="True" Margin="10,121,10,46" Drop="pluginsBox_Drop">
 
