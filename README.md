@@ -1,5 +1,6 @@
 # TESLOR - The Elder Scrolls Load Order Reorganizer
-![Screenshot 2023-09-05 015837](https://github.com/george0815/TESSLOR/assets/20736715/a561f472-3d9d-442e-9254-4e387e816394)
+![Screenshot 2023-09-05 015833](https://github.com/george0815/TESLOR/assets/20736715/de66b373-8234-4755-af42-9ab573101a54)
+
 
 
 
