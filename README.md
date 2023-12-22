@@ -36,6 +36,8 @@ Just extract the zip file and launch the program.
 Some files have to be loaded no matter what, (e.g., Morrowind.esm, Update.esm, Skyrim.esm), therefore disabling these plugins will be ignored, even if the "Edit masters" option is enabled. Furthurmore, in the case of Skyrim Special Edition and Fallout 4, DLCs 
 will always be loaded in a certain order, so changing the load order of DLCs will also be ignored. Finally Creation Club plugins will always be loaded AFTER DLCs but BEFORE custom masters.
 
+Furthermore, this has not been updated for Skyrim Anniversary Edition v1.6.1130 so use at your own risk. 
+
 ## Acknowledgements
 
 - [esplugin](https://github.com/Ortham/esplugin): Library for reading esm, esl, and esp files.
