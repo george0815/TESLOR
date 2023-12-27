@@ -156,10 +156,12 @@ namespace SimpleLoadOrderOrganizer
                 loadPlugins();
             }
             //if there is already a load order, just update DataContext
-            else if((File.Exists(games.gamesList[game.SelectedIndex].configFolder) && Directory.Exists(games.gamesList[game.SelectedIndex].gameFolder))) {DataContext = games.gamesList[game.SelectedIndex]; }
+            else if((File.Exists(games.gamesList[game.SelectedIndex].configFolder) && Directory.Exists(games.gamesList[game.SelectedIndex].gameFolder))) {DataContext = games.gamesList[game.SelectedIndex]; index = game.SelectedIndex;}
             //if one path isn't valid, show notice
             else
             {
+                index = game.SelectedIndex;
+                DataContext = games.gamesList[game.SelectedIndex];
                 editMasters.IsEnabled = false;
                 conflictCheckBox.IsEnabled = false;
                 warningLabel.Visibility = Visibility.Visible;
@@ -218,19 +220,31 @@ namespace SimpleLoadOrderOrganizer
                     if (game.SelectedIndex == 0) { cFolder = "Data Files"; }
                     else { cFolder = "Data"; }
 
+                    //if config file and game folder are both valid
                     if (File.Exists(games.gamesList[game.SelectedIndex].configFolder) && File.Exists(openFolderDialog.SelectedPath + "\\" + cFolder + "\\" + games.gamesList[game.SelectedIndex].mandatoryFiles[0]))
                     {
 
-                        //Get the path of specified file
+                        //Get the path of specified folder
                         gameFolderBox.Text = openFolderDialog.SelectedPath + "\\";
                         games.gamesList[game.SelectedIndex].gameFolder = openFolderDialog.SelectedPath + "\\";
                         loopControl = true;
                         loadPlugins();
                     }
-                    else
+                    //if only config file is valid
+                    else if (File.Exists(games.gamesList[game.SelectedIndex].configFolder) && !(File.Exists(openFolderDialog.SelectedPath + "\\" + cFolder + "\\" + games.gamesList[game.SelectedIndex].mandatoryFiles[0])))
                     {
                         //Shows error message
                         System.Windows.Forms.MessageBox.Show("Could not find " + games.gamesList[game.SelectedIndex].mandatoryFiles[0] + ", please choose the correct directory.", "Error");
+                    }
+                    //if only game folder is valid
+                    else if (!(File.Exists(games.gamesList[game.SelectedIndex].configFolder)) && File.Exists(openFolderDialog.SelectedPath + "\\" + cFolder + "\\" + games.gamesList[game.SelectedIndex].mandatoryFiles[0]))
+                    {
+                        //Get the path of specified folder
+                        gameFolderBox.Text = openFolderDialog.SelectedPath + "\\";
+                        games.gamesList[game.SelectedIndex].gameFolder = openFolderDialog.SelectedPath + "\\";
+                        loopControl = true;
+                        //Shows error message
+                        System.Windows.Forms.MessageBox.Show("Please enter a valid path for the plugin config file", "Error");
                     }
                 }
 
@@ -283,6 +297,7 @@ namespace SimpleLoadOrderOrganizer
                 // Process open file dialog box results
                 if (result == true)
                 {
+                    //if config file and game folder are both valid
                     if (File.Exists(dialog.FileName) && ((string.Equals(dialog.SafeFileName, "plugins.txt", StringComparison.OrdinalIgnoreCase) && games.gameID != 0) || 
                         (string.Equals(dialog.SafeFileName, "morrowind.ini", StringComparison.OrdinalIgnoreCase) && games.gameID == 0)) && Directory.Exists(games.gamesList[game.SelectedIndex].gameFolder)) { 
                         //Get the path of specified file
@@ -291,15 +306,29 @@ namespace SimpleLoadOrderOrganizer
                         loopControl = true;
                         loadPlugins();
                     }
-                    else
+                    //if only game folder is valid
+                    else if ((!File.Exists(dialog.FileName) || !((string.Equals(dialog.SafeFileName, "plugins.txt", StringComparison.OrdinalIgnoreCase) && games.gameID != 0) ||
+                        (string.Equals(dialog.SafeFileName, "morrowind.ini", StringComparison.OrdinalIgnoreCase) && games.gameID == 0))) && Directory.Exists(games.gamesList[game.SelectedIndex].gameFolder))
                     {
                         //Shows error message
                         if (games.gameID != 0) { System.Windows.Forms.MessageBox.Show("Could not find plugins.txt, please choose the correct file.", "Error"); }
                         else { System.Windows.Forms.MessageBox.Show("Could not find Morrowind.ini, please choose the correct file.", "Error"); }
                     }
+                    //if only config file is valid
+                    else if (File.Exists(dialog.FileName) && ((string.Equals(dialog.SafeFileName, "plugins.txt", StringComparison.OrdinalIgnoreCase) && games.gameID != 0) ||
+                        (string.Equals(dialog.SafeFileName, "morrowind.ini", StringComparison.OrdinalIgnoreCase) && games.gameID == 0)) && !Directory.Exists(games.gamesList[game.SelectedIndex].gameFolder))
+                    {
+                        //Get the path of specified file
+                        pluginsTextBox.Text = dialog.FileName;
+                        games.gamesList[game.SelectedIndex].configFolder = dialog.FileName;
+                        loopControl = true;
+                        //Shows error message
+                        System.Windows.Forms.MessageBox.Show("Please enter a valid path for the game directory.", "Error");
+                    }
+
                 }
   
-                else if (result == false)
+                else if (result == false)    
                 {
                     loopControl = true;
                 }
@@ -384,7 +413,7 @@ namespace SimpleLoadOrderOrganizer
                         path = key?.GetValue("installed path") as string;
 
                         //if directory is found, set directory to key value 
-                        using (key) { if (!string.IsNullOrWhiteSpace(path)) { game.gameFolder = path; } }
+                        using (key) { if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path) ) { game.gameFolder = path; } }
 
                     }
                 }
@@ -402,13 +431,14 @@ namespace SimpleLoadOrderOrganizer
                     //morrowind uses Morrowind.ini in it's game folder to store active plugins so we have to look in the game folder rather than appdata
                     if (game.name == "The Elder Scrolls III: Morrowind" && System.IO.File.Exists(game.gameFolder + game.defaultConfigFolder))
                     {
-                        game.configFolder = game.gameFolder + game.defaultConfigFolder;   
+                        game.configFolder = game.gameFolder + game.defaultConfigFolder;
+                        File.Copy(game.configFolder, game.configFolder.Remove(game.configFolder.Length - 4) + "_backup.txt", true);
                     }
                     else if ((game.name != "The Elder Scrolls III: Morrowind" && System.IO.File.Exists(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + game.defaultConfigFolder)))
                     {
                         game.configFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + game.defaultConfigFolder;
+                        File.Copy(game.configFolder, game.configFolder.Remove(game.configFolder.Length - 4) + "_backup.txt", true);
                     }
-                    File.Copy(game.configFolder, game.configFolder.Remove(game.configFolder.Length - 4) + "_backup.txt", true);
 
 
                 }

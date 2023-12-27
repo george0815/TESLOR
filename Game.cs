@@ -204,10 +204,7 @@ namespace SimpleLoadOrderOrganizer
             #endregion
           
 
-            #region LOAD ACTIVE PLUGINS FROM CONFIG FILE
-
-
-            #endregion
+            
         }
 
         //WRITES PLUGINS
