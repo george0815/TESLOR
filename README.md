@@ -4,7 +4,7 @@
 
 
 
-Extremely simple load order editor for mainline Bethesda games. Users can see their load order, reorder it, see mods' master files, see how many records mods overrite, and check which mods conflict with each other. 
+Extremely simple load order editor for mainline Bethesda games. Users can see their load order, reorder it, see mods' master files, see how many records mods overwrite, and check which mods conflict with each other. 
 
 ### Games supported:
 Morrowind <br/>
