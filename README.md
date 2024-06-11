@@ -9,7 +9,7 @@ Extremely simple load order editor for mainline Bethesda games. Users can see th
 ### Games supported:
 Morrowind <br/>
 Oblivion<br/>
-Skyrim
+Skyrim<br/>
 Skyrim Special Edition<br/>
 Fallout 3<br/>
 Fallout: New Vegas<br/>
