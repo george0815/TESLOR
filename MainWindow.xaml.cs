@@ -262,16 +262,7 @@ namespace SimpleLoadOrderOrganizer
         }
 
 
-        //ON WINDOW CLOSE
-        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-        {
-            System.IO.File.Delete("cfg.json");
-            saveConfig();
-
-
-            //if a games load order was changed, saves the loadorder
-            foreach (Game g in games.gamesList) {if (g.wasChanged) {g.writePlugins(); } }
-        }
+    
 
 
         //PLUGIN CONFIG FOLDER BUTTTON
@@ -341,7 +332,7 @@ namespace SimpleLoadOrderOrganizer
         
 
         //EDIT MASTERS CHECKBOX
-        private void editMasters_Checked(object sender, RoutedEventArgs e){ DataContext = games.gamesList[game.SelectedIndex]; }
+        private void editMasters_Checked(object sender, RoutedEventArgs e){ DataContext = games.gamesList[game.SelectedIndex];  }
         private void editMasters_Unchecked(object sender, RoutedEventArgs e){ DataContext = games.gamesList[game.SelectedIndex]; }
 
 
@@ -518,6 +509,27 @@ namespace SimpleLoadOrderOrganizer
             progressLabel.Visibility = Visibility.Visible;
             loadingBar.Visibility = Visibility.Visible;
             backgroundWorkerConflict.RunWorkerAsync();
+        }
+        
+
+
+        //SAVE BUTTON
+        private void saveButton_Click(object sender, RoutedEventArgs e)
+        {
+            System.IO.File.Delete("cfg.json");
+            saveConfig();
+
+            MessageBoxResult dialogResult = System.Windows.MessageBox.Show("Currently active game's settings/load order will be saved. Do you want to save every games' settings/load order?", "Save", MessageBoxButton.YesNo);
+            if (dialogResult == MessageBoxResult.Yes)
+            {
+                //if a games load order was changed, saves the loadorder
+                foreach (Game g in games.gamesList) { if (g.wasChanged) { g.writePlugins(); } }
+            }
+            else if (dialogResult == MessageBoxResult.No)
+            {
+                //if a games load order was changed, saves the loadorder
+                 if (games.gamesList[game.SelectedIndex].wasChanged) { games.gamesList[game.SelectedIndex].writePlugins(); } 
+            }
         }
     }
 
