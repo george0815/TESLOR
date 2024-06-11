@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SimpleLoadOrderOrganizer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cf1d6d081dcc1a80a1f89de41b29085af81abe09")]
 [assembly: System.Reflection.AssemblyProductAttribute("SimpleLoadOrderOrganizer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SimpleLoadOrderOrganizer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "fYWqIwJCmddQRhOnR6s1BJAudnbSRwbseJEmvRrZYzdjNDMelUnHs4PEi4qJXAPbwyH054FEwhj8hBInhif6cA==",
+  "dgSpecHash": "LDUUbZQe7c1keGnaSnhuZDog83HKUsaVSDa2B83z7XKpZIECOs2Dt3XGMrWnVK+2KS5GZdgMwWVnkGHSrwU9bw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\shipm\\source\\repos\\TESLOR\\SimpleLoadOrderOrganizer.csproj",
+  "projectFilePath": "C:\\Users\\shipm\\OneDrive\\Documents\\GitHub\\TESSLOR\\SimpleLoadOrderOrganizer.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\shipm\\.nuget\\packages\\gong-wpf-dragdrop\\3.2.1\\gong-wpf-dragdrop.3.2.1.nupkg.sha512",
     "C:\\Users\\shipm\\.nuget\\packages\\microsoft.netcore.platforms\\1.1.0\\microsoft.netcore.platforms.1.1.0.nupkg.sha512",
