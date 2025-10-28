@@ -162,6 +162,8 @@ namespace SimpleLoadOrderOrganizer
             {
                 DataContext = games.gamesList[game.SelectedIndex];
                 index = game.SelectedIndex;
+                editMasters.IsEnabled = true;
+                conflictCheckBox.IsEnabled = true;
                 warningLabel.Visibility = Visibility.Hidden;
 
             }
