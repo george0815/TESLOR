@@ -2,33 +2,43 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Json;
 using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Windows.Forms;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 
 namespace SimpleLoadOrderOrganizer
 {
     //declares rust FFI functions used to parse plugins
-    internal class Native
+    internal static partial class Native
     {
-        [DllImport("esplugin.dll")]
-        internal static extern pluginHandle getPluginInfo(string path, Int32 game);
+        private const string DllName = "esplugin";
 
-        [DllImport("esplugin.dll")]
-        internal static extern bool doesOverlap(Int32 game, string pluginOne, string pluginTwo);
+        // GetPluginInfo: returns an allocated C string we must free manually
+        [LibraryImport(DllName, StringMarshalling = StringMarshalling.Utf8)]
+        public static partial IntPtr GetPluginInfo(string path, int game);
 
-        [DllImport("esplugin.dll")]
-        internal static extern void freeString(IntPtr path);
+        // FreeString: frees memory allocated by Rust
+        [LibraryImport(DllName)]
+        public static partial void FreeString(IntPtr ptr);
+
+        // DoesOverlap: returns bool
+        [LibraryImport(DllName, StringMarshalling = StringMarshalling.Utf8)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static partial bool DoesOverlap(int game, string pluginOne, string pluginTwo);
     }
 
 
-    internal class pluginHandle : SafeHandle
+    internal class PluginHandle : SafeHandle
     {
-        public pluginHandle() : base(IntPtr.Zero, true) { }
+        // Default constructor for ownership
+        public PluginHandle() : base(IntPtr.Zero, true) { }
+
+        // New constructor to wrap an existing pointer
+        public PluginHandle(IntPtr handle) : base(IntPtr.Zero, true)
+        {
+            SetHandle(handle); // protected call is allowed inside derived class
+        }
 
         public override bool IsInvalid { get { return this.handle == IntPtr.Zero; } }
 
@@ -43,7 +53,7 @@ namespace SimpleLoadOrderOrganizer
 
         protected override bool ReleaseHandle()
         {
-            if (!this.IsInvalid) { Native.freeString(handle); }
+            if (!this.IsInvalid) { Native.FreeString(handle); }
 
             return true;
         }
@@ -55,65 +65,85 @@ namespace SimpleLoadOrderOrganizer
     {
 
         [DataMember(Name = "overriderecords")]
-        public int overrideRecords { get; set; }
+        public int OverrideRecords { get; set; }
 
 
         [DataMember(Name = "ismaster")]
-        public bool isMaster { get; set; }
+        public bool IsMaster { get; set; }
 
 
         [DataMember(Name = "islightmaster")]
-        public bool isLight { get; set; }
+        public bool IsLight { get; set; }
 
 
         [DataMember(Name = "masters")]
-        public List<string> masters { get; set; }
+        public List<string>? Masters { get; set; }
 
 
         [DataMember(Name = "filename")]
-        public string pluginFilename { get; set; }
+        public string? PluginFilename { get; set; }
 
-        public string filePath { get; set; }
-
-
-        public bool isActive { get; set; }
-
-        private pluginHandle pluginJson;
+        public string? FilePath { get; set; }
 
 
-        public string mastersString { get; set; }
+        public bool IsActive { get; set; }
 
-        public DateTime dateModified { get; set; }
+        private readonly PluginHandle PluginJson;
+
+
+        public string? MastersString { get; set; }
+
+        public DateTime DateModified { get; set; }
             
 
-        public string conflicts { get; set; }
+        public string? Conflicts { get; set; }
         
 
-        public Plugin(string path, Int32 game) { pluginJson = Native.getPluginInfo(path, game); deserialize(); }
+        public bool invalid = false;
 
-        public void deserialize()
-        {
+        public Plugin(string path, Int32 game) {
 
 
-            using (var memoryStream = new MemoryStream(Encoding.Unicode.GetBytes(pluginJson.AsString())))
+            PluginJson = new PluginHandle(Native.GetPluginInfo(path, game));
+
+
+            using var memoryStream = new MemoryStream(Encoding.Unicode.GetBytes(PluginJson.AsString()));
+            try
             {
-                try
-                {
-                    var serializer = new DataContractJsonSerializer(typeof(Plugin));
-                    Plugin temp = (Plugin)serializer.ReadObject(memoryStream);
-                    this.masters = temp.masters;
-                    this.isMaster = temp.isMaster;
-                    this.isLight = temp.isLight;
-                    this.overrideRecords = temp.overrideRecords;
-                    this.pluginFilename = temp.pluginFilename;
-                }
-                catch (Exception ex) { MessageBox.Show(ex.Message); }
-            }
+                var serializer = new DataContractJsonSerializer(typeof(Plugin));
 
+                var obj = serializer.ReadObject(memoryStream);
+                if (obj is Plugin temp &&
+                    temp.Masters != null &&
+                    temp.PluginFilename != null){
+                    this.Masters = temp.Masters;
+                    this.IsMaster = temp.IsMaster;
+                    this.IsLight = temp.IsLight;
+                    this.OverrideRecords = temp.OverrideRecords;
+                    this.PluginFilename = temp.PluginFilename;
+                }
+                else{
+                    throw new InvalidOperationException("Deserialized Plugin is missing required properties.");
+                }
+
+
+            }
+            catch (Exception ex) {
+
+                if (ex is InvalidOperationException) {
+                    this.invalid = true;
+                }
+                else { MessageBox.Show(ex.Message); }
+                    
+            
+            
+            }
 
         }
 
-        public void Dispose() { pluginJson.Dispose(); }
+        
+
+        public void Dispose() { PluginJson.Dispose(); GC.SuppressFinalize(this); }
 
 
       
