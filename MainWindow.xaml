@@ -90,7 +90,7 @@
         </CheckBox>
         <CheckBox x:Name="conflictCheckBox"  IsChecked="{Binding ConflictCheck, Mode=TwoWay}" Content="Check for conflicts" HorizontalAlignment="Left" Margin="110,104,0,0" VerticalAlignment="Top" ToolTip="After initially loading plugins, program will check each plugin and display what other plugins overlap with it" Checked="ConflictCheckBox_Checked"/>
         <Label x:Name="progressLabel" Content="Created by George S." HorizontalAlignment="Left" Margin="10,0,0,8" Width="343"  VerticalAlignment="Bottom"/>
-        <ProgressBar Minimum="0" Maximum="100" x:Name="loadingBar" Margin="358,0,10,8"  VerticalAlignment="Bottom" Height="30" RenderTransformOrigin="0.5,0.5" Visibility="Hidden" >
+        <ProgressBar Minimum="0" Maximum="1.0" x:Name="loadingBar" Margin="358,0,10,8"  VerticalAlignment="Bottom" Height="30" RenderTransformOrigin="0.5,0.5" Visibility="Hidden" >
             <ProgressBar.RenderTransform>
                 <TransformGroup>
                     <ScaleTransform ScaleY="-1"/>

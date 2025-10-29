@@ -15,6 +15,8 @@ namespace SimpleLoadOrderOrganizer
     [DataContract]
     internal partial class Game
     {
+
+        
         [DataMember(Name = "Game Folder")]
         public string? GameFolder { get; set; }
 
@@ -31,7 +33,7 @@ namespace SimpleLoadOrderOrganizer
         public string? RegKey { get; set; }
 
         [DataMember(Name = "ID")]
-        public int Id { get; set; }
+        public Games.GameIDs Id { get; set; }
 
         [DataMember(Name = "Load Plugins")]
         public bool LoadOnStart { get; set; }
@@ -79,7 +81,7 @@ namespace SimpleLoadOrderOrganizer
 
 
         //LOADS PLUGINS
-        public void LoadPlugins(BackgroundWorker? bw = null)
+        public void LoadPlugins(IProgress<double> progress)
         {
 
             #region LOAD ALL PLUGINS FROM DATA FOLDER
@@ -112,13 +114,15 @@ namespace SimpleLoadOrderOrganizer
                 lines = File.ReadLines(this.ConfigFolder);
             }
             Plugin tempPlugin;
+            List<Plugin> tempPlugins = [];
 
             //add a checkbox for each plugin
             foreach (FileInfo file in filesList)
             {
 
+
                 //creates plugin
-                tempPlugin = new Plugin(file.FullName, this.Id);
+                tempPlugin = new Plugin(file.FullName, (int)this.Id);
 
                 //if invalid plugin, skip
                 if (tempPlugin.invalid == true) { continue; }
@@ -130,10 +134,10 @@ namespace SimpleLoadOrderOrganizer
                 try
                 {
                     //checks all files that are required for loading
-                    if (this.MandatoryFiles.Contains(file.Name) || CreationClubCheck1().IsMatch(file.Name) || CreationClubCheck2().IsMatch(file.Name)) { tempPlugin.IsActive = true; }
+                    if (this.MandatoryFiles.Contains(file.Name) || (file.Name.Contains("_ResourcePack") && this.Id == Games.GameIDs.SkyrimSE) || CreationClubCheck1().IsMatch(file.Name) || CreationClubCheck2().IsMatch(file.Name)) { tempPlugin.IsActive = true; }
 
                     //Morrowind use's Morrowind.ini instead of plugins.txt so we have to acocunt for that
-                    if (this.Id == 0)
+                    if (this.Id == Games.GameIDs.Morrowind)
                     {
                         string tempLine = "";
                         //for every line
@@ -147,7 +151,7 @@ namespace SimpleLoadOrderOrganizer
 
                         }
                     }
-                    else if (this.Id == 3 || this.Id == 6)
+                    else if (this.Id == Games.GameIDs.SkyrimSE || this.Id == Games.GameIDs.Fallout4)
                     {
                         string tempLine = "";
                         //for every line
@@ -174,19 +178,27 @@ namespace SimpleLoadOrderOrganizer
                 }
 
 
-                App.Current.Dispatcher.Invoke((Action)delegate 
-                {
-                    this.LoadOrder.Add(tempPlugin);
+           
+                tempPlugins.Add(tempPlugin);
 
-                });
-                bw?.ReportProgress(Convert.ToInt32((double)LoadOrder.Count / filesList.Count() * 100));
+                var fileCount = filesList.Count();
+
+
+                progress?.Report((double)tempPlugins.Count / fileCount);
                 tempPlugin.Dispose();
 
 
             }
 
+
+            // Then, once:
+            App.Current.Dispatcher.Invoke(() => {
+                LoadOrder = new ObservableCollection<Plugin>(tempPlugins);
+            });
+
+
             //reorders
-            if (this.Id == 3 || this.Id == 6 || this.Id == 2)
+            if (this.Id == Games.GameIDs.SkyrimSE || this.Id == Games.GameIDs.Fallout4 || this.Id == Games.GameIDs.Skyrim)
             {
                 //for every line
                 foreach (var line in lines)
@@ -221,31 +233,49 @@ namespace SimpleLoadOrderOrganizer
 
                 }
             }
-            App.Current.Dispatcher.Invoke((Action)delegate // <--- HERE
+            App.Current.Dispatcher.Invoke(() =>
             {
-                //if skyrim
-                if (Id == 2) { this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderBy(s => s.IsMaster).ThenBy(s => s.PluginFilename == "Skyrim.esm").ThenBy(s => s.PluginFilename != "Update.esm").Reverse()); }
-                //if sse or fallout 4
-                else if (Id == 3)
+                static string[] GetCoreOrder(Games.GameIDs id) => id switch
                 {
-                    this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderBy(s => s.IsMaster).ThenBy(s => s.PluginFilename == "Skyrim.esm").ThenBy(s => s.PluginFilename == "Update.esm").ThenBy(s => s.PluginFilename == "Dawnguard.esm").ThenBy(s => s.PluginFilename == "HearthFires.esm").ThenBy(s => s.PluginFilename == "Dragonborn.esm").Reverse());
-                }
-                else if (Id == 6)
+                    Games.GameIDs.Skyrim => ["Skyrim.esm", "Update.esm"],
+                    Games.GameIDs.SkyrimSE => ["Skyrim.esm", "Update.esm", "Dawnguard.esm", "HearthFires.esm", "Dragonborn.esm"],
+                    Games.GameIDs.Fallout4 => [ "Fallout4.esm", "DLCRobot.esm", "DLCworkshop01.esm", "DLCCoast.esm",
+                                           "DLCworkshop02.esm", "DLCworkshop03.esm", "DLCNukaWorld.esm" ],
+                    Games.GameIDs.Fallout3 => ["Fallout3.esm"],
+                    Games.GameIDs.FalloutNV => ["FalloutNV.esm"],
+                    Games.GameIDs.Morrowind => ["Morrowind.esm"],
+                    Games.GameIDs.Oblivion => ["Oblivion.esm"],
+                    _ => []
+                };
+
+                var coreOrder = GetCoreOrder(Id);
+                if (coreOrder.Length == 0)
+                    return;
+
+                // Split list into “core” and “non-core” parts
+                var corePlugins = LoadOrder
+                    .Where(p => coreOrder.Contains(p.PluginFilename!, StringComparer.OrdinalIgnoreCase))
+                    .OrderBy(p => Array.IndexOf(coreOrder, p.PluginFilename!))
+                    .ToList();
+
+                var otherPlugins = LoadOrder
+                    .Where(p => !coreOrder.Contains(p.PluginFilename!, StringComparer.OrdinalIgnoreCase)).Reverse()
+                    .ToList();
+
+                // For certain games, sort *only* other plugins by DateModified (the old behavior)
+                if (Id is Games.GameIDs.Morrowind or Games.GameIDs.Oblivion or Games.GameIDs.Fallout3 or Games.GameIDs.FalloutNV)
                 {
-                    this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderBy(s => s.IsMaster).ThenBy(s => s.PluginFilename == "Fallout4.esm").ThenBy(s => s.PluginFilename == "DLCRobot.esm").ThenBy(s => s.PluginFilename == "DLCworkshop01.esm").ThenBy(s => s.PluginFilename == "DLCCoast.esm").ThenBy(s => s.PluginFilename == "DLCworkshop02.esm").ThenBy(s => s.PluginFilename == "DLCworkshop03.esm").ThenBy(s => s.PluginFilename == "DLCNukaWorld.esm").Reverse());
+                    otherPlugins = [.. otherPlugins
+                        .OrderBy(p => p.DateModified)
+                        .ThenBy(p => !p.IsMaster)];
                 }
-                //if fallout 3
-                else if (Id == 4) { this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderByDescending(s => s.PluginFilename == "Fallout3.esm").ThenBy(s => s.DateModified).ThenBy(s => s.IsMaster)); }
 
-                //if fallout new vegas
-                else if (Id == 5) { this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderByDescending(s => s.PluginFilename == "FalloutNV.esm").ThenBy(s => s.DateModified).ThenBy(s => s.IsMaster)); }
+                // Combine the sorted core files with the original (or date-sorted) others
+                var newOrder = new ObservableCollection<Plugin>(corePlugins.Concat(otherPlugins));
 
-                //if Morrowind
-                else if (Id == 0) { this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderByDescending(s => s.PluginFilename == "Morrowind.esm").ThenBy(s => s.DateModified).ThenBy(s => s.IsMaster)); }
-
-                //if Oblivion
-                else if (Id == 1) { this.LoadOrder = new ObservableCollection<Plugin>(LoadOrder.OrderByDescending(s => s.PluginFilename == "Oblivion.esm").ThenBy(s => s.DateModified).ThenBy(s => s.IsMaster)); }
+                LoadOrder = newOrder;
             });
+
 
             #endregion
 
@@ -263,10 +293,10 @@ namespace SimpleLoadOrderOrganizer
             //sets release date
             var dateModified = this.Id switch
             {
-                0 => new DateOnly(2002, 5, 1),
-                1 => new DateOnly(2006, 3, 20),
-                4 => new DateOnly(2008, 10, 28),
-                5 => new DateOnly(2010, 10, 19),
+                Games.GameIDs.Morrowind => new DateOnly(2002, 5, 1),
+                Games.GameIDs.Oblivion => new DateOnly(2006, 3, 20),
+                Games.GameIDs.Fallout3 => new DateOnly(2008, 10, 28),
+                Games.GameIDs.FalloutNV => new DateOnly(2010, 10, 19),
                 _ => new DateOnly(2011, 11, 11),
             };
 
@@ -274,7 +304,7 @@ namespace SimpleLoadOrderOrganizer
             string fileString = "";
 
 
-            if (this.Id == 0)
+            if (this.Id == Games.GameIDs.Morrowind)
             {
                 //Opens morrowind config file
                 try
@@ -309,26 +339,26 @@ namespace SimpleLoadOrderOrganizer
             {
 
 
-                if (this.Id == 0 || this.Id == 1 || this.Id == 4 || this.Id == 5)
+                if (this.Id == Games.GameIDs.Morrowind || this.Id == Games.GameIDs.Oblivion || this.Id == Games.GameIDs.Fallout3 || this.Id == Games.GameIDs.FalloutNV)
                 {
 
 
-                    //3. Sets date modified (olde game' loadorder is determined by the plugins last write time)
-                    File.SetLastWriteTime(p.FilePath!, dateModified.ToDateTime(TimeOnly.MinValue));
+                    //3. Sets date modified (old game's loadorder is determined by the plugins last write time)
                     dateModified = dateModified.AddDays(1);
+                    File.SetLastWriteTime(p.FilePath!, dateModified.ToDateTime(TimeOnly.MinValue));
 
 
 
                     //4. write name if active, nothing inactive (handle morrowind)
-                    if (p.IsActive && this.Id != 0) { fileString += p.PluginFilename + Environment.NewLine; }
-                    else if (p.IsActive && this.Id == 0)
+                    if (p.IsActive && this.Id != Games.GameIDs.Morrowind) { fileString += p.PluginFilename + Environment.NewLine; }
+                    else if (p.IsActive && this.Id == Games.GameIDs.Morrowind)
                     {
                         fileString += "GameFile" + counter + "=" + p.PluginFilename + Environment.NewLine;
                         counter++;
                     }
 
                 }
-                else if (this.Id == 3 || this.Id == 6)
+                else if (this.Id == Games.GameIDs.SkyrimSE || this.Id == Games.GameIDs.Fallout4)
                 {
 
                     //3. write down * then name if active, just name if inactive
@@ -358,54 +388,72 @@ namespace SimpleLoadOrderOrganizer
         }
 
         //CHECKS FOR MOD CONFLICTS
-        public void OverlapCheck(BackgroundWorker? bw = null)
+        public void OverlapCheck(IProgress<double> progress)
         {
-            List<string> checkedPlugins = [];
+            var loadOrder = LoadOrder;
+            int total = loadOrder.Count;
+            int totalComparisons = (total * (total - 1)) / 2;
             int counter = 0;
 
-            foreach (Plugin p1 in this.LoadOrder)
+            // Use a HashSet for O(1) lookup
+            HashSet<string> checkedPlugins = [];
+
+            // Cache base files to skip
+            HashSet<string> basePlugins = new(StringComparer.OrdinalIgnoreCase)
             {
-                
+                "Skyrim.esm", "Update.esm",
+                "Morrowind.esm",
+                "Oblivion.esm",
+                "FalloutNV.esm", "Fallout3.esm", "Fallout4.esm"
+            };
 
-                foreach (Plugin p2 in this.LoadOrder)
+            // Store all conflict results locally first
+            var conflictPairs = new List<(Plugin, Plugin)>();
+
+            for (int i = 0; i < total; i++)
+            {
+                var p1 = loadOrder[i];
+                if (basePlugins.Contains(p1.PluginFilename!))
+                    continue;
+
+                for (int j = i + 1; j < total; j++) 
                 {
-                    if (p1.PluginFilename != p2.PluginFilename && !checkedPlugins.Contains(p2.PluginFilename!) &&
-                        (p2.PluginFilename != "Skyrim.esm" && p2.PluginFilename != "Update.esm" && p1.PluginFilename != "Skyrim.esm" && p1.PluginFilename != "Update.esm") &&
-                        (p2.PluginFilename != "Morrowind.esm" && p1.PluginFilename != "Morrowind.esm") &&
-                        (p2.PluginFilename != "Oblivion.esm" && p1.PluginFilename != "Oblivion.esm") &&
-                        (p2.PluginFilename != "FalloutNV.esm" && p1.PluginFilename != "FalloutNV.esm") &&
-                        (p2.PluginFilename != "Fallout3.esm" && p1.PluginFilename != "Fallout3.esm") &&
-                        (p2.PluginFilename != "Fallout4.esm" && p1.PluginFilename != "Fallout4.esm")
-                        )
+                    var p2 = loadOrder[j];
+                    if (basePlugins.Contains(p2.PluginFilename!))
+                        continue;
+
+                    if (Native.DoesOverlap((int)Id, p1.FilePath!, p2.FilePath!))
                     {
-                        if (Native.DoesOverlap(Id, p1.FilePath!, p2.FilePath!))
-                        {
-
-
-
-                            App.Current.Dispatcher.Invoke((Action)delegate // <--- HERE
-                            {
-                                if (p1.Conflicts != null) { p1.Conflicts += "\n"; }
-                                if (p2.Conflicts != null) { p2.Conflicts += "\n"; }
-
-
-                                p1.Conflicts += p2.PluginFilename;
-                                p2.Conflicts += p1.PluginFilename;
-
-
-
-                            });
-
-                        }
-
+                        conflictPairs.Add((p1, p2));
                     }
+
                     counter++;
-                    bw?.ReportProgress(Convert.ToInt32((double)counter / (LoadOrder.Count * LoadOrder.Count) * 100));
+                    if (counter % 10 == 0) // don’t flood the progress bar
+                        progress?.Report((double)counter / totalComparisons);
                 }
 
                 checkedPlugins.Add(p1.PluginFilename!);
-
             }
+
+            // Now apply conflict results on UI thread in one go
+            if (conflictPairs.Count > 0)
+            {
+                App.Current.Dispatcher.Invoke(() =>
+                {
+                    foreach (var (p1, p2) in conflictPairs)
+                    {
+                        if (!string.IsNullOrEmpty(p1.Conflicts))
+                            p1.Conflicts += "\n";
+                        if (!string.IsNullOrEmpty(p2.Conflicts))
+                            p2.Conflicts += "\n";
+
+                        p1.Conflicts += p2.PluginFilename;
+                        p2.Conflicts += p1.PluginFilename;
+                    }
+                });
+            }
+
+            progress?.Report(1.0);
         }
 
         //regexes for checking for anniversary edition plugins
@@ -418,6 +466,20 @@ namespace SimpleLoadOrderOrganizer
     [DataContract]
     internal class Games
     {
+
+        internal enum GameIDs
+        {
+            Morrowind = 0,
+            Oblivion = 1,
+            Skyrim = 2,
+            SkyrimSE = 3,
+            Fallout3 = 4,
+            FalloutNV = 5,
+            Fallout4 = 6
+        }
+
+
+
         [DataMember(Name = "Games")]
         public ObservableCollection<Game> gamesList = [];
 
@@ -426,14 +488,14 @@ namespace SimpleLoadOrderOrganizer
 
         public Games()
         {
-            gamesList.Add(new Game { Name = "The Elder Scrolls III: Morrowind", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Morrowind", DefaultConfigFolder = "\\Morrowind.ini", Id = 0, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Morrowind.esm"] });
-            gamesList.Add(new Game { Name = "The Elder Scrolls IV: Oblivion", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Oblivion", DefaultConfigFolder = "\\AppData\\Local\\Oblivion\\Plugins.txt", Id = 1, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Oblivion.esm"] });
-            gamesList.Add(new Game { Name = "The Elder Scrolls V: Skyrim", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Skyrim", DefaultConfigFolder = "\\AppData\\Local\\Skyrim\\plugins.txt", Id = 2, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Skyrim.esm", "Update.esm"] });
-            gamesList.Add(new Game { Name = "The Elder Scrolls V: Skyrim – Special Edition", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Skyrim Special Edition", DefaultConfigFolder = "\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt", Id = 3, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Skyrim.esm", "Update.esm", "Dawnguard.esm", "Dragonborn.esm", "HearthFires.esm"] });
-            gamesList.Add(new Game { Name = "Fallout 3", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Fallout3", DefaultConfigFolder = "\\AppData\\Local\\Fallout3\\plugins.txt", Id = 4, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Fallout3.esm"] });
-            gamesList.Add(new Game { Name = "Fallout: New Vegas", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\falloutnv", DefaultConfigFolder = "\\AppData\\Local\\FalloutNV\\plugins.txt", Id = 5, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["FalloutNV.esm"] });
-            gamesList.Add(new Game { Name = "Fallout 4", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Fallout4", DefaultConfigFolder = "\\AppData\\Local\\Fallout4\\Plugins.txt", Id = 6, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Fallout4.esm", "DLCRobot.esm", "DLCworkshop01.esm", "DLCCoast.esm", "DLCworkshop02.esm", "DLCworkshop03.esm", "DLCNukaWorld.esm"] });
-            GameID = 3;
+            gamesList.Add(new Game { Name = "The Elder Scrolls III: Morrowind", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Morrowind", DefaultConfigFolder = "\\Morrowind.ini", Id = GameIDs.Morrowind, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Morrowind.esm"] });
+            gamesList.Add(new Game { Name = "The Elder Scrolls IV: Oblivion", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Oblivion", DefaultConfigFolder = "\\AppData\\Local\\Oblivion\\Plugins.txt", Id = GameIDs.Oblivion, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Oblivion.esm"] });
+            gamesList.Add(new Game { Name = "The Elder Scrolls V: Skyrim", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Skyrim", DefaultConfigFolder = "\\AppData\\Local\\Skyrim\\plugins.txt", Id = GameIDs.Skyrim, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Skyrim.esm", "Update.esm"] });
+            gamesList.Add(new Game { Name = "The Elder Scrolls V: Skyrim – Special Edition", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Skyrim Special Edition", DefaultConfigFolder = "\\AppData\\Local\\Skyrim Special Edition\\Plugins.txt", Id = GameIDs.SkyrimSE, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Skyrim.esm", "Update.esm", "Dawnguard.esm", "Dragonborn.esm", "HearthFires.esm"] });
+            gamesList.Add(new Game { Name = "Fallout 3", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Fallout3", DefaultConfigFolder = "\\AppData\\Local\\Fallout3\\plugins.txt", Id = GameIDs.Fallout3, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Fallout3.esm"] });
+            gamesList.Add(new Game { Name = "Fallout: New Vegas", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\falloutnv", DefaultConfigFolder = "\\AppData\\Local\\FalloutNV\\plugins.txt", Id = GameIDs.FalloutNV, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["FalloutNV.esm"] });
+            gamesList.Add(new Game { Name = "Fallout 4", ConfigFolder = "", GameFolder = "", RegKey = "SOFTWARE\\WOW6432Node\\Bethesda Softworks\\Fallout4", DefaultConfigFolder = "\\AppData\\Local\\Fallout4\\Plugins.txt", Id = GameIDs.Fallout4, EditMaster = false, ConflictCheck = false, MandatoryFiles = ["Fallout4.esm", "DLCRobot.esm", "DLCworkshop01.esm", "DLCCoast.esm", "DLCworkshop02.esm", "DLCworkshop03.esm", "DLCNukaWorld.esm"] });
+            GameID = (int)GameIDs.SkyrimSE;
 
         }
     }
