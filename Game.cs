@@ -1,4 +1,53 @@
-﻿using System;
+﻿// =====================================================================================
+// Game.cs
+//
+// Purpose:
+// This file contains two closely related types used by the application:
+// - `Game` (partial): the per-game model that encapsulates a game's folders, configuration,
+//   load-order and the logic to load plugins, write the active plugin list, and detect conflicts.
+// - `Games`: a small container and factory that initializes the supported games and stores
+//   the last active game index (persisted root object for application configuration).
+//
+// - `Game.LoadPlugins(IProgress<double>)`:
+//   1. Enumerates plugin files (extensions .esm, .esp, .esl) in the game's Data folder.
+//   2. For each file, it calls the native parser (via `Plugin`) to get metadata and constructs
+//      runtime `Plugin` objects (filename, masters, override counts). The native handle is
+//      released as soon as the managed fields are copied.
+//   3. Reads the game's active-plugins config file (plugins.txt or Morrowind.ini) and sets
+//      `IsActive` accordingly.
+//   4. Reports progress to the UI via the provided `IProgress<double>` instance.
+//   5. Updates the UI-bound `ObservableCollection<Plugin>` on the UI thread using
+//      `App.Current.Dispatcher.Invoke` (ensures collection changes are marshalled to the UI thread).
+//   6. Reorders core files and other plugins according to per-game rules (core files first,
+//      optional date-sorting for older games).
+//
+// - `Game.WritePlugins()` writes the game's plugin list back to its configuration format.
+//   The method handles per-game differences (Morrowind's GameFile entries, Skyrim/FO4's star
+//   prefix for enabled plugins, and the "date-modification" ordering technique for older games).
+//
+// - `Game.OverlapCheck(IProgress<double>)`:
+//   - Performs an O(n^2) comparison across the load order using `Native.DoesOverlap` to detect
+//     conflicts between plugin pairs.
+//   - Accumulates conflict pairs and applies the results in one batch on the UI thread to avoid
+//     cross-thread property updates.
+//   - Reports progress periodically to avoid flooding the progress UI.
+//
+// - `MainWindow` uses `Games` (collection) to populate the UI game selector and persists that
+//   configuration to `cfg.json`. When a user selects a game, `Game.LoadPlugins` is invoked (on a
+//   background task) and the UI is updated once loading completes.
+// - `Plugin` objects returned by `LoadPlugins` are displayed in the UI; changes to `IsActive` or
+//   reorder operations cause `WasChanged` to be set and are persisted by `Game.WritePlugins`.
+//
+// - Threading and UI safety: heavy I/O and native parsing run off the UI thread. Any writes to
+//   `ObservableCollection` or UI-bound properties are done via `Dispatcher.Invoke` to ensure they
+//   execute on the UI thread and avoid concurrency exceptions.
+// - Performance: `OverlapCheck` is quadratic in the number of plugins. It uses native `DoesOverlap`
+//   for the actual overlap test; consider profiling `DoesOverlap` if the conflict-check step is slow.
+// - Serialization: `Game` is a data contract used when serializing the `Games` container to JSON.
+//
+// =====================================================================================
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -12,11 +61,25 @@ using System.Text.RegularExpressions;
 namespace SimpleLoadOrderOrganizer
 {
 
+    /// <summary>
+    /// Represents a single game's configuration and runtime state:
+    /// - Folder locations (game data folder and configuration file)
+    /// - Information about how to read and write the game's active plugin list
+    /// - The observable `LoadOrder` that the UI binds to
+    /// - Methods for loading plugins, writing plugin files, and detecting conflicts
+    /// 
+    /// Important behaviour:
+    /// - `LoadPlugins` performs file system scanning and native parsing off the UI thread
+    ///   and then marshals the populated `ObservableCollection<Plugin>` to the UI thread.
+    /// - Uses `IProgress<double>` to report progress while loading or checking conflicts.
+    /// - Implements property notifications via `INotifyPropertyChanged` for UI binding.
+    /// </summary>
     [DataContract]
     internal partial class Game
     {
 
-        
+        #region PROPERTIES AND FIELDS
+
         [DataMember(Name = "Game Folder")]
         public string? GameFolder { get; set; }
 
@@ -57,6 +120,23 @@ namespace SimpleLoadOrderOrganizer
 
         // INotifyPropertyChanged 
         public event PropertyChangedEventHandler? PropertyChanged;
+
+        // UI-bound collection
+        public ObservableCollection<Plugin> LoadOrder { get; set; } = [];
+
+        // these are files that will always be loaded regardless of whether they are checked in the launcher/in the config
+        [DataMember(Name = "Mandatory Files")]
+        public List<string> MandatoryFiles { get; set; } = [];
+
+        // indicates if any changes were made to the load order or active plugins
+        [DefaultValue(false)]
+        public bool WasChanged { get; set; }
+
+
+        #endregion
+
+        #region INotifyPropertyChanged IMPLEMENTATION
+
         protected void OnPropertyChanged([CallerMemberName] string? name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -71,21 +151,27 @@ namespace SimpleLoadOrderOrganizer
             return true;
         }
 
-        public ObservableCollection<Plugin> LoadOrder { get; set; } = [];
+        #endregion
 
-        [DataMember(Name = "Mandatory Files")]
-        public List<string> MandatoryFiles { get; set; } = [];// these are files that will always be loaded regardless of whether they are checked in the launcher/in the config
+        #region REGEXES
 
-        [DefaultValue(false)]
-        public bool WasChanged { get; set; }
+        //regexes for checking for anniversary edition plugins
 
+        [GeneratedRegex(@"^cc[a-zA-Z]{6}\d{3}")]
+        private static partial Regex CreationClubCheck1();
+        [GeneratedRegex(@"^cc[a-zA-Z]{5}\d{4}")]
+        private static partial Regex CreationClubCheck2();
+
+        #endregion
+
+        #region PLUGIN OPERATIONS
 
         //LOADS PLUGINS
         public void LoadPlugins(IProgress<double> progress)
         {
 
             #region LOAD ALL PLUGINS FROM DATA FOLDER
-            this.LoadOrder = [];
+            this.LoadOrder = [];// clear existing
 
             string directory = ""; //hold's plugins directory for a given game
 
@@ -284,7 +370,6 @@ namespace SimpleLoadOrderOrganizer
         }
 
         //WRITES PLUGINS
-
         public void WritePlugins()
         {
 
@@ -343,13 +428,14 @@ namespace SimpleLoadOrderOrganizer
                 {
 
 
-                    //3. Sets date modified (old game's loadorder is determined by the plugins last write time)
+                    // Sets date modified (old game's loadorder is determined by the plugins last write time)
                     dateModified = dateModified.AddDays(1);
                     File.SetLastWriteTime(p.FilePath!, dateModified.ToDateTime(TimeOnly.MinValue));
 
 
 
-                    //4. write name if active, nothing inactive (handle morrowind)
+
+                    // write name if active, nothing inactive (handle morrowind)
                     if (p.IsActive && this.Id != Games.GameIDs.Morrowind) { fileString += p.PluginFilename + Environment.NewLine; }
                     else if (p.IsActive && this.Id == Games.GameIDs.Morrowind)
                     {
@@ -361,7 +447,7 @@ namespace SimpleLoadOrderOrganizer
                 else if (this.Id == Games.GameIDs.SkyrimSE || this.Id == Games.GameIDs.Fallout4)
                 {
 
-                    //3. write down * then name if active, just name if inactive
+                    // write down * then name if active, just name if inactive
                     if (p.IsActive) { fileString += "*" + p.PluginFilename + Environment.NewLine; }
                     else { fileString += p.PluginFilename + Environment.NewLine; }
 
@@ -369,7 +455,7 @@ namespace SimpleLoadOrderOrganizer
                 else
                 {
 
-                    //3. write name if active, nothing inactive
+                    // write name if active, nothing inactive
                     if (p.IsActive) { fileString += p.PluginFilename + Environment.NewLine; }
 
                 }
@@ -378,7 +464,7 @@ namespace SimpleLoadOrderOrganizer
             }
 
 
-            //5. Saves loadorder
+            //Saves loadorder
             try { File.WriteAllText(this.ConfigFolder!, fileString); }
             catch (Exception)
             {
@@ -456,13 +542,19 @@ namespace SimpleLoadOrderOrganizer
             progress?.Report(1.0);
         }
 
-        //regexes for checking for anniversary edition plugins
 
-        [GeneratedRegex(@"^cc[a-zA-Z]{6}\d{3}")]
-        private static partial Regex CreationClubCheck1();
-        [GeneratedRegex(@"^cc[a-zA-Z]{5}\d{4}")]
-        private static partial Regex CreationClubCheck2();
+        #endregion
+        
     }
+
+
+    /// <summary>
+    /// Container for all supported games. This is the root object serialized to `cfg.json`.
+    /// - `gamesList` holds the per-game `Game` objects the UI enumerates.
+    /// - `GameID` persists the last selected game index across sessions.
+    /// The constructor initializes the known games with default registry keys, config paths and
+    /// mandatory/core files for each supported title.
+    /// </summary>
     [DataContract]
     internal class Games
     {
