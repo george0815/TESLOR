@@ -161,6 +161,13 @@ namespace SimpleLoadOrderOrganizer
         public string? FilePath { get; set; }
 
 
+        // Runtime: whether plugin is in folder but not found in load order
+        public bool FoundInLoadOrder { get; set; } = false;
+
+        // Runtime: whether plugin is required
+        public bool IsReq { get; set; } = false;
+
+
         // Runtime: whether plugin is enabled (persisted separately via game config files)
         public bool IsActive { get; set; }
 
@@ -172,10 +179,10 @@ namespace SimpleLoadOrderOrganizer
         public string? MastersString { get; set; }
 
         public DateTime DateModified { get; set; }
-            
+
 
         public string? Conflicts { get; set; }
-        
+
 
         // Flag set when parsing fails or the plugin JSON is missing required fields
         public bool invalid = false;
@@ -185,7 +192,22 @@ namespace SimpleLoadOrderOrganizer
         /// This constructor performs native interop and JSON deserialization and is intended to run
         /// on a background thread (see Game.LoadPlugins).
         /// </summary>
-        public Plugin(string path, Int32 game) {
+        /// 
+
+        //DEFAULT CONSTRCUTOR FOR TESTING PURPOSES ONLY
+
+        public Plugin()
+        {
+            this.Masters = [];
+            this.IsMaster = true;
+            this.IsLight = false;
+            this.OverrideRecords = 400;
+            this.PluginFilename = "testing";
+            PluginJson = new PluginHandle();
+        }
+
+        public Plugin(string path, Int32 game)
+        {
 
 
             PluginJson = new PluginHandle(Native.GetPluginInfo(path, game));
@@ -199,33 +221,37 @@ namespace SimpleLoadOrderOrganizer
                 var obj = serializer.ReadObject(memoryStream);
                 if (obj is Plugin temp &&
                     temp.Masters != null &&
-                    temp.PluginFilename != null){
+                    temp.PluginFilename != null)
+                {
                     this.Masters = temp.Masters;
                     this.IsMaster = temp.IsMaster;
                     this.IsLight = temp.IsLight;
                     this.OverrideRecords = temp.OverrideRecords;
                     this.PluginFilename = temp.PluginFilename;
                 }
-                else{
+                else
+                {
                     throw new InvalidOperationException("Deserialized Plugin is missing required properties.");
                 }
 
 
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
 
-                if (ex is InvalidOperationException) {
+                if (ex is InvalidOperationException)
+                {
                     this.invalid = true;
                 }
                 else { MessageBox.Show(ex.Message); }
-                    
-            
-            
+
+
+
             }
 
         }
 
-        
+
 
         /// <summary>
         /// Dispose the native handle. After disposing, the plugin retains managed state (filename,
@@ -235,7 +261,7 @@ namespace SimpleLoadOrderOrganizer
         public void Dispose() { PluginJson.Dispose(); GC.SuppressFinalize(this); }
 
 
-      
+
 
 
     }

@@ -251,7 +251,7 @@ namespace SimpleLoadOrderOrganizer
 
 
         //WHEN COMBOBOX INDEX CHANGES
-        public async void Game_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        public void Game_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             conflictCheckLock = true;
             games.GameID = game.SelectedIndex;
@@ -262,7 +262,7 @@ namespace SimpleLoadOrderOrganizer
                 IsValidGame(game.SelectedIndex))
             {
                 index = game.SelectedIndex;
-                await LoadPluginsAsync();
+                LoadPlugins();
             }
             //IF GAME IS VALID, SET DATACONTEXT
             else if (IsValidGame(game.SelectedIndex))
@@ -358,7 +358,7 @@ namespace SimpleLoadOrderOrganizer
         {
             string expectedFile = game.SelectedIndex == 0 ? "Data Files" : "Data";
 
-            // Use your helper method
+            // Use helper method
             if (TrySelectFolder(out string? selectedPath, expectedFile, false))
             {
                 gameFolderBox.Text = selectedPath!;
@@ -466,7 +466,7 @@ namespace SimpleLoadOrderOrganizer
                 {
                     FileName = "Config file",
                     DefaultExt = ".txt",
-                    Filter = "Text documents (*.txt;*.ini)|*.txt;*.ini"
+                    Filter = "Text documents (*.txt;*.ini;*.cfg)|*.txt;*.ini;*.cfg"
                 };
 
                 bool? result = dialog.ShowDialog();
