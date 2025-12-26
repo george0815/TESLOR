@@ -436,6 +436,7 @@ namespace SimpleLoadOrderOrganizer
 
             loadingBar.Visibility = enabled ? Visibility.Hidden : Visibility.Visible;
             progressLabel.Content = enabled ? "Created by George S." : progressMsg;
+            conflictCheckLock = false;
         }
 
 
