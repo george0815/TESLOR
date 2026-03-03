@@ -40,3 +40,19 @@ will always be loaded in a certain order, so changing the load order of DLCs wil
 ## Acknowledgements
 
 - [esplugin](https://github.com/Ortham/esplugin): Library for reading esm, esl, and esp files.
+
+
+
+
+
+<br>
+<br>
+<br>
+<br>
+
+### COPYRIGHT
+
+Copyright (C) 2019-2026 George Hunter Shipman
+
+This project is licensed under the GNU General Public License v3.0.
+See the LICENSE file for details.
